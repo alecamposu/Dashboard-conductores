@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Análisis de Conductores por Canjeo de Premios</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f13;
+    --surface: #15171d;
+    --surface2: #1c1f28;
+    --border: #252831;
+    --accent: #f5c842;
+    --accent2: #4ecca3;
+    --accent3: #e85d75;
+    --accent4: #7c6af7;
+    --text: #e8eaf0;
+    --muted: #7a7f94;
+    --activa: #4ecca3;
+    --menos3: #f5c842;
+    --churn: #e85d75;
+    --negociacion: #7c6af7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    padding: 36px 48px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: linear-gradient(135deg, #0e0f13 60%, #1a1c25);
+  }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .badge-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge.activa  { background: rgba(78,204,163,.15); color: var(--activa); border: 1px solid rgba(78,204,163,.3); }
+  .badge.menos3  { background: rgba(245,200,66,.15); color: var(--menos3); border: 1px solid rgba(245,200,66,.3); }
+  .badge.churn   { background: rgba(232,93,117,.15); color: var(--churn); border: 1px solid rgba(232,93,117,.3); }
+  .badge.neg     { background: rgba(124,106,247,.15); color: var(--negociacion); border: 1px solid rgba(124,106,247,.3); }
+
+  /* FILTER BAR */
+  .filter-bar {
+    padding: 16px 48px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .filter-label { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-right: 4px; }
+  .filter-btn {
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-btn.active, .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(245,200,66,.07); }
+  .filter-btn.activa.active  { border-color: var(--activa); color: var(--activa); background: rgba(78,204,163,.07); }
+  .filter-btn.menos3.active  { border-color: var(--menos3); color: var(--menos3); background: rgba(245,200,66,.07); }
+  .filter-btn.churn.active   { border-color: var(--churn); color: var(--churn); background: rgba(232,93,117,.07); }
+  .filter-btn.neg.active     { border-color: var(--negociacion); color: var(--negociacion); background: rgba(124,106,247,.07); }
+
+  /* LAYOUT */
+  main { padding: 32px 48px 64px; }
+
+  /* KPI STRIP */
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .kpi-card.activa::before  { background: var(--activa); }
+  .kpi-card.menos3::before  { background: var(--menos3); }
+  .kpi-card.churn::before   { background: var(--churn); }
+  .kpi-card.neg::before     { background: var(--negociacion); }
+  .kpi-label { font-size: 11px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value { font-family: 'DM Serif Display', serif; font-size: 32px; letter-spacing: -1px; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* SECTION HEADERS */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; }
+  .section-title span { color: var(--accent); font-style: italic; }
+  .section-divider { flex: 1; height: 1px; background: var(--border); }
+  .section-note { font-size: 11px; color: var(--muted); }
+
+  /* CHART GRID */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  .chart-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-grid.full { grid-template-columns: 1fr; }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+  }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .chart-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 20px; }
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-wrap.tall { height: 320px; }
+
+  /* COHORT HEATMAP */
+  .cohort-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cohort-table th { 
+    padding: 8px 10px; 
+    text-align: center; 
+    color: var(--muted); 
+    font-weight: 500; 
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .cohort-table th:first-child { text-align: left; }
+  .cohort-table td { 
+    padding: 8px 10px; 
+    text-align: center; 
+    border-bottom: 1px solid rgba(255,255,255,0.03); 
+    font-weight: 500;
+  }
+  .cohort-table td:first-child { text-align: left; font-size: 11px; }
+  .cell-heat {
+    border-radius: 6px;
+    display: inline-block;
+    width: 100%;
+    padding: 4px 0;
+    font-size: 11px;
+  }
+
+  /* COMPANY TABLE */
+  .company-scroll { overflow-x: auto; }
+  .company-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .company-table th { 
+    padding: 8px 12px; 
+    text-align: left; 
+    color: var(--muted); 
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .company-table td { 
+    padding: 8px 12px; 
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    white-space: nowrap;
+  }
+  .company-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .score-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 11px;
+  }
+  .trend-dot { 
+    display: inline-block; 
+    width: 8px; height: 8px; 
+    border-radius: 50%; 
+    margin-right: 4px;
+  }
+
+  /* STATUS LIST */
+  .status-section { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  .company-list-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .company-list-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .company-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* TIMELINE */
+  .timeline-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  /* SPARKLINE */
+  .sparkline-row {
+    display: flex; align-items: center; gap: 12px; padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .sparkline-name { width: 180px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sparkline-bars { display: flex; gap: 2px; align-items: flex-end; height: 28px; flex: 1; }
+  .sparkline-bar { 
+    flex: 1; 
+    border-radius: 2px 2px 0 0; 
+    min-width: 4px;
+    transition: opacity 0.2s;
+  }
+  .sparkline-val { font-size: 12px; font-weight: 600; width: 40px; text-align: right; }
+
+  @media (max-width: 900px) {
+    header, .filter-bar, main { padding-left: 20px; padding-right: 20px; }
+    .chart-grid, .chart-grid.three { grid-template-columns: 1fr; }
+    .status-section { grid-template-columns: 1fr; }
+    .kpi-strip { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Conductores <span>&amp; Premios</span><br>Dashboard de Análisis</h1>
+    <p>Cohorte por estatus de empresa · Scores de manejo · Permanencia 2025</p>
+  </div>
+  <div class="badge-group">
+    <span class="badge activa">● Activa</span>
+    <span class="badge menos3">● Onboarding</span>
+    <span class="badge churn">● Churn</span>
+    <span class="badge neg">● Negociación</span>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <span class="filter-label">Filtrar por estatus:</span>
+  <button class="filter-btn activa active" onclick="toggleFilter('Activa',this)">Activa (968)</button>
+  <button class="filter-btn menos3 active" onclick="toggleFilter('Menos de 3 meses',this)">Onboarding (79)</button>
+  <button class="filter-btn churn active" onclick="toggleFilter('Churn',this)">Churn (276)</button>
+  <button class="filter-btn neg active" onclick="toggleFilter('Negociación',this)">Negociación (62)</button>
+</div>
+
+<main>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip">
+    <div class="kpi-card activa">
+      <div class="kpi-label">Conductores Activos</div>
+      <div class="kpi-value" style="color:var(--activa)">968</div>
+      <div class="kpi-sub">Score prom. dic: 71.3</div>
+    </div>
+    <div class="kpi-card menos3">
+      <div class="kpi-label">En Onboarding</div>
+      <div class="kpi-value" style="color:var(--menos3)">79</div>
+      <div class="kpi-sub">Promedio 3.2 meses activos</div>
+    </div>
+    <div class="kpi-card churn">
+      <div class="kpi-label">Empresas Churn</div>
+      <div class="kpi-value" style="color:var(--churn)">276</div>
+      <div class="kpi-sub">26 empresas · 5.9 meses prom.</div>
+    </div>
+    <div class="kpi-card neg">
+      <div class="kpi-label">En Negociación</div>
+      <div class="kpi-value" style="color:var(--negociacion)">62</div>
+      <div class="kpi-sub">5 empresas · 6.4 meses prom.</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(245,200,66,.2);">
+      <div class="kpi-label">Score Máximo (Activa)</div>
+      <div class="kpi-value" style="color:var(--accent)">93.9</div>
+      <div class="kpi-sub">Febrero 2025 — pico histórico</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(78,204,163,.2);">
+      <div class="kpi-label">Prom. Meses Activos</div>
+      <div class="kpi-value" style="color:var(--accent2)">7.5</div>
+      <div class="kpi-sub">Conductores Activos</div>
+    </div>
+  </div>
+
+  <!-- SCORE TRENDS -->
+  <div class="section-header">
+    <span class="section-title">Score general <span>por mes</span></span>
+    <div class="section-divider"></div>
+    <span class="section-note">Promedio mensual por estatus de empresa</span>
+  </div>
+
+  <div class="chart-grid full">
+    <div class="chart-card">
+      <div class="chart-title">Evolución del Score de Manejo — 2025</div>
+      <div class="chart-subtitle">Promedio mensual de score por categoría de empresa (Ene–Dic)</div>
+      <div class="chart-wrap tall">
+        <canvas id="scoreTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">% Conductores que Mejoraron Score MoM</div>
+      <div class="chart-subtitle">Porcentaje con mejora positiva vs mes anterior</div>
+      <div class="chart-wrap">
+        <canvas id="mejoraPctChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Variación Promedio de Score MoM (%)</div>
+      <div class="chart-subtitle">Cambio porcentual promedio entre meses consecutivos</div>
+      <div class="chart-wrap">
+        <canvas id="mejoraAvgChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- RETENTION / PERMANENCIA -->
+  <div class="section-header" style="margin-top:16px">
+    <span class="section-title">Permanencia <span>y Cohorte</span></span>
+    <div class="section-divider"></div>
+    <span class="section-note">% del total de conductores con score registrado cada mes</span>
+  </div>
+
+  <div class="chart-grid full">
+    <div class="chart-card">
+      <div class="chart-title">Cohort de Permanencia — % Conductores con Score Activo por Mes</div>
+      <div class="chart-subtitle">Mide si los conductores siguen generando scores a lo largo del año (línea de área)</div>
+      <div class="chart-wrap tall">
+        <canvas id="retentionChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- COHORT HEATMAP -->
+  <div class="timeline-wrap">
+    <div class="chart-title" style="margin-bottom:4px">Heatmap de Cohort — % Presencia por Mes y Estatus</div>
+    <div class="chart-subtitle" style="margin-bottom:16px">Intensidad de color = mayor % de conductores activos ese mes</div>
+    <div class="company-scroll">
+      <table class="cohort-table" id="cohortTable"></table>
+    </div>
+  </div>
+
+  <!-- EMPRESA SCORES SPARKLINES -->
+  <div class="section-header">
+    <span class="section-title">Empresas <span>Activas</span> — Evolución</span>
+    <div class="section-divider"></div>
+    <span class="section-note">Score promedio mensual por empresa (barras = meses)</span>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:32px">
+    <div class="chart-title">Score Mensual por Empresa — Top Empresas Activas</div>
+    <div class="chart-subtitle">Cada barra representa el score promedio de esa empresa en ese mes (Ene → Dic)</div>
+    <div id="sparklines" style="margin-top:16px"></div>
+  </div>
+
+  <!-- COMPANY LISTS -->
+  <div class="section-header">
+    <span class="section-title">Empresas <span>por Estatus</span></span>
+    <div class="section-divider"></div>
+    <span class="section-note">Clasificación completa del portafolio</span>
+  </div>
+
+  <div class="status-section" id="companyLists"></div>
+
+</main>
+
+<script>
+const DATA = {
+  score_by_status: {"Activa":[{"month":"enero","avg":74.41,"n":406},{"month":"febrero","avg":93.86,"n":414},{"month":"marzo","avg":93.48,"n":456},{"month":"abril","avg":74.56,"n":560},{"month":"mayo","avg":74.38,"n":613},{"month":"junio","avg":74.71,"n":627},{"month":"julio","avg":56.58,"n":751},{"month":"agosto","avg":71.98,"n":767},{"month":"septiembre","avg":74.18,"n":495},{"month":"octubre","avg":73.41,"n":750},{"month":"noviembre","avg":71.96,"n":736},{"month":"diciembre","avg":71.3,"n":671}],"Menos de 3 meses":[{"month":"enero","avg":null,"n":0},{"month":"febrero","avg":null,"n":0},{"month":"marzo","avg":87.13,"n":15},{"month":"abril","avg":77.38,"n":16},{"month":"mayo","avg":77.0,"n":17},{"month":"junio","avg":76.78,"n":6},{"month":"julio","avg":46.33,"n":31},{"month":"agosto","avg":73.01,"n":32},{"month":"septiembre","avg":73.23,"n":17},{"month":"octubre","avg":69.86,"n":46},{"month":"noviembre","avg":68.67,"n":45},{"month":"diciembre","avg":67.8,"n":25}],"Churn":[{"month":"enero","avg":71.02,"n":168},{"month":"febrero","avg":87.54,"n":166},{"month":"marzo","avg":86.67,"n":172},{"month":"abril","avg":71.44,"n":177},{"month":"mayo","avg":71.04,"n":169},{"month":"junio","avg":71.56,"n":149},{"month":"julio","avg":52.9,"n":179},{"month":"agosto","avg":68.05,"n":145},{"month":"septiembre","avg":74.39,"n":64},{"month":"octubre","avg":71.3,"n":104},{"month":"noviembre","avg":72.3,"n":97},{"month":"diciembre","avg":66.5,"n":36}],"Negociación":[{"month":"enero","avg":70.04,"n":23},{"month":"febrero","avg":97.45,"n":22},{"month":"marzo","avg":97.5,"n":30},{"month":"abril","avg":71.28,"n":32},{"month":"mayo","avg":72.76,"n":45},{"month":"junio","avg":72.55,"n":46},{"month":"julio","avg":57.25,"n":48},{"month":"agosto","avg":74.04,"n":38},{"month":"septiembre","avg":57.5,"n":1},{"month":"octubre","avg":73.89,"n":39},{"month":"noviembre","avg":72.08,"n":38},{"month":"diciembre","avg":72.47,"n":34}]},
+  retention_by_status: {"Activa":{"avg_months":7.49,"count":968,"by_month":[{"month":"enero","active":406,"pct":41.9},{"month":"febrero","active":414,"pct":42.8},{"month":"marzo","active":456,"pct":47.1},{"month":"abril","active":560,"pct":57.9},{"month":"mayo","active":613,"pct":63.3},{"month":"junio","active":627,"pct":64.8},{"month":"julio","active":751,"pct":77.6},{"month":"agosto","active":767,"pct":79.2},{"month":"septiembre","active":495,"pct":51.1},{"month":"octubre","active":750,"pct":77.5},{"month":"noviembre","active":736,"pct":76.0},{"month":"diciembre","active":671,"pct":69.3}]},"Menos de 3 meses":{"avg_months":3.16,"count":79,"by_month":[{"month":"enero","active":0,"pct":0.0},{"month":"febrero","active":0,"pct":0.0},{"month":"marzo","active":15,"pct":19.0},{"month":"abril","active":16,"pct":20.3},{"month":"mayo","active":17,"pct":21.5},{"month":"junio","active":6,"pct":7.6},{"month":"julio","active":31,"pct":39.2},{"month":"agosto","active":32,"pct":40.5},{"month":"septiembre","active":17,"pct":21.5},{"month":"octubre","active":46,"pct":58.2},{"month":"noviembre","active":45,"pct":57.0},{"month":"diciembre","active":25,"pct":31.6}]},"Churn":{"avg_months":5.89,"count":276,"by_month":[{"month":"enero","active":168,"pct":60.9},{"month":"febrero","active":166,"pct":60.1},{"month":"marzo","active":172,"pct":62.3},{"month":"abril","active":177,"pct":64.1},{"month":"mayo","active":169,"pct":61.2},{"month":"junio","active":149,"pct":54.0},{"month":"julio","active":179,"pct":64.9},{"month":"agosto","active":145,"pct":52.5},{"month":"septiembre","active":64,"pct":23.2},{"month":"octubre","active":104,"pct":37.7},{"month":"noviembre","active":97,"pct":35.1},{"month":"diciembre","active":36,"pct":13.0}]},"Negociación":{"avg_months":6.39,"count":62,"by_month":[{"month":"enero","active":23,"pct":37.1},{"month":"febrero","active":22,"pct":35.5},{"month":"marzo","active":30,"pct":48.4},{"month":"abril","active":32,"pct":51.6},{"month":"mayo","active":45,"pct":72.6},{"month":"junio","active":46,"pct":74.2},{"month":"julio","active":48,"pct":77.4},{"month":"agosto","active":38,"pct":61.3},{"month":"septiembre","active":1,"pct":1.6},{"month":"octubre","active":39,"pct":62.9},{"month":"noviembre","active":38,"pct":61.3},{"month":"diciembre","active":34,"pct":54.8}]}},
+  mejora_by_status: {"Activa":[{"period":"Feb/Ene","avg":27.33,"n":384,"pct_improved":96.1},{"period":"Mar/Feb","avg":-0.04,"n":403,"pct_improved":34.5},{"period":"Abr/Mar","avg":-20.45,"n":444,"pct_improved":3.6},{"period":"May/Abr","avg":0.1,"n":526,"pct_improved":39.4},{"period":"Jun/May","avg":1.13,"n":585,"pct_improved":53.3},{"period":"Jul/Jun","avg":-6.11,"n":559,"pct_improved":31.7},{"period":"Ago/Jul","avg":21.45,"n":615,"pct_improved":43.7},{"period":"Sep/Ago","avg":2.86,"n":465,"pct_improved":58.3},{"period":"Oct/Sep","avg":0.12,"n":468,"pct_improved":54.7},{"period":"Nov/Oct","avg":-1.76,"n":701,"pct_improved":33.8},{"period":"Dic/Nov","avg":-0.19,"n":660,"pct_improved":40.5}],"Menos de 3 meses":[{"period":"Feb/Ene","avg":null,"n":0,"pct_improved":null},{"period":"Mar/Feb","avg":null,"n":0,"pct_improved":null},{"period":"Abr/Mar","avg":-9.79,"n":15,"pct_improved":20.0},{"period":"May/Abr","avg":-0.41,"n":16,"pct_improved":43.8},{"period":"Jun/May","avg":0.0,"n":1,"pct_improved":0.0},{"period":"Jul/Jun","avg":-12.79,"n":5,"pct_improved":0.0},{"period":"Ago/Jul","avg":45.8,"n":22,"pct_improved":50.0},{"period":"Sep/Ago","avg":-2.03,"n":14,"pct_improved":21.4},{"period":"Oct/Sep","avg":-0.87,"n":10,"pct_improved":40.0},{"period":"Nov/Oct","avg":-1.33,"n":42,"pct_improved":42.9},{"period":"Dic/Nov","avg":-1.57,"n":24,"pct_improved":29.2}],"Churn":[{"period":"Feb/Ene","avg":23.82,"n":147,"pct_improved":87.1},{"period":"Mar/Feb","avg":-1.0,"n":152,"pct_improved":32.9},{"period":"Abr/Mar","avg":-17.0,"n":158,"pct_improved":11.4},{"period":"May/Abr","avg":-1.58,"n":153,"pct_improved":35.9},{"period":"Jun/May","avg":1.24,"n":145,"pct_improved":46.9},{"period":"Jul/Jun","avg":-5.12,"n":124,"pct_improved":25.8},{"period":"Ago/Jul","avg":17.17,"n":129,"pct_improved":36.4},{"period":"Sep/Ago","avg":8.2,"n":60,"pct_improved":68.3},{"period":"Oct/Sep","avg":1.75,"n":54,"pct_improved":61.1},{"period":"Nov/Oct","avg":0.58,"n":92,"pct_improved":51.1},{"period":"Dic/Nov","avg":-1.25,"n":36,"pct_improved":30.6}],"Negociación":[{"period":"Feb/Ene","avg":41.38,"n":21,"pct_improved":100.0},{"period":"Mar/Feb","avg":0.12,"n":22,"pct_improved":31.8},{"period":"Abr/Mar","avg":-27.58,"n":27,"pct_improved":0.0},{"period":"May/Abr","avg":-1.55,"n":30,"pct_improved":40.0},{"period":"Jun/May","avg":0.35,"n":42,"pct_improved":50.0},{"period":"Jul/Jun","avg":-9.96,"n":41,"pct_improved":29.3},{"period":"Ago/Jul","avg":20.96,"n":37,"pct_improved":70.3},{"period":"Sep/Ago","avg":-7.26,"n":1,"pct_improved":0.0},{"period":"Oct/Sep","avg":-1.74,"n":1,"pct_improved":0.0},{"period":"Nov/Oct","avg":-2.41,"n":38,"pct_improved":44.7},{"period":"Dic/Nov","avg":2.27,"n":31,"pct_improved":54.8}]},
+  companies_by_status: {"Activa":["Abordo Transporte Empresarial","Alas Del Monte","AMHER (Cacesa)","CK TRANSPORTES","Comunilab","Control Servicios Tacticos Integrales","Difarmer","Esgari","Ethomedical","Expreso peninsular sa de cv","Express Sinaloa 8w","Fast Transfers","FH Logística","Fletes milciem","Frío Express","Garcia´s Trucking","GRUPO FANTO","GS Corporación","Imagen Dinamica","KonektiVan","La Superior","Lineas 1 de Mayo","Lynko","M Y M Lopez","Nbio","Qualtia","Roll & Bits","Segadi","TIGSA TRANSPORTS","Tracusa Silao","TRANSIC","Transporte Lain","Transportes Aleman Estrella","TRANSPORTES JULIAN DE OBREGON","TRANSPORTES SANCHEZ","Transportes Temperaturas Controladas - TTC","TSM","Vortex Cargo","NUEVO MEX","Grupo OFIR","Jarabe San Pedro","Transportes Geos"],"Churn":["Ab Transfers","Comercializadora Abanor","Leadss auto y logistica","ai27","American Transxpress","AOG EXPRESS","Arie/S4","Big 500","CEMEX","Express Milac","Floral Remem","Flota Rodrigo Gutierrez","FORZA Refrigerados","Houston Mexico","LOGISTICA CODA","LOGISTRAN","LOSCO","Porte Logistica","SAMA","Santa Fe de Guanajuato","Tracusa Puebla","Transcooler","Transportes 11","Transportes FLETA","Transportes perrone","TSI Trucks"],"Menos de 3 meses":["Transportadora Consolidada","ALCOSA","Campos Reyeros","COORDINADOS ADIC","GONAC","GST TRANSPORTES","ROAL TRANSPORTES","ROMA LOGISTICS","Siirto","TJG TRANSPORTES JOSE GUAJARDO","XCF","TML Transportes","Del Valle Transportes","TRANLISUR"],"Negociación":["Transportes JSV SA DE CV","UniTrans","CC Trucking","DECC","TC Transportes Cuauhtémoc"]},
+  empresa_scores: {"Abordo Transporte Empresarial":[null,null,null,null,null,null,0.0,64.9,65.8,67.7,67.0,65.6],"Alas Del Monte":[73.8,92.0,92.5,73.1,73.5,74.1,63.8,72.2,72.0,71.5,70.2,69.8],"AMHER (Cacesa)":[null,null,null,65.4,69.8,70.8,65.8,69.5,67.2,67.6,66.8,70.6],"CK TRANSPORTES":[71.9,90.6,93.0,72.1,74.1,69.7,55.6,65.8,66.6,63.9,61.6,66.0],"Comunilab":[null,null,null,null,53.5,57.4,66.3,65.8,66.2,68.0,71.0,69.5],"Control Servicios Tacticos Integrales":[null,null,null,null,51.5,65.2,56.9,52.0,52.8,56.4,60.7,62.0],"Difarmer":[null,null,89.0,76.0,71.0,71.7,73.0,70.8,72.3,71.6,73.0,68.0],"Esgari":[null,null,null,84.3,83.8,81.3,46.2,79.7,79.6,79.5,77.8,78.2],"Ethomedical":[70.7,77.7,76.2,69.4,71.0,68.1,63.1,67.6,66.8,65.3,62.7,62.3],"Expreso peninsular sa de cv":[null,null,null,72.8,70.8,80.9,78.8,75.2,74.7,75.0,73.6,67.0],"Express Sinaloa 8w":[null,null,null,71.3,74.1,73.7,61.5,70.6,71.1,71.4,65.3,66.4],"Fast Transfers":[85.0,93.4,93.0,86.9,86.2,87.6,60.0,88.3,88.5,91.3,92.5,86.3],"FH Logística":[null,null,null,null,70.1,70.8,51.4,68.2,68.6,67.3,64.3,64.3],"Fletes milciem":[null,null,null,null,null,null,43.4,74.8,72.8,72.4,71.0,73.5],"Frío Express":[71.7,95.7,95.6,70.3,69.7,70.8,49.9,69.6,79.1,80.4,78.4,77.8]},
+  month_labels: ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
+  mejora_labels: ["Feb/Ene","Mar/Feb","Abr/Mar","May/Abr","Jun/May","Jul/Jun","Ago/Jul","Sep/Ago","Oct/Sep","Nov/Oct","Dic/Nov"],
+  statuses: ["Activa","Menos de 3 meses","Churn","Negociación"]
+};
+
+const COLORS = {
+  'Activa': '#4ecca3',
+  'Menos de 3 meses': '#f5c842',
+  'Churn': '#e85d75',
+  'Negociación': '#7c6af7'
+};
+
+let activeFilters = new Set(['Activa','Menos de 3 meses','Churn','Negociación']);
+let charts = {};
+
+function toggleFilter(status, btn) {
+  if (activeFilters.has(status)) {
+    if (activeFilters.size === 1) return;
+    activeFilters.delete(status);
+    btn.classList.remove('active');
+  } else {
+    activeFilters.add(status);
+    btn.classList.add('active');
+  }
+  updateAllCharts();
+}
+
+function getDatasets(dataKey, valueKey) {
+  return DATA.statuses.filter(s => activeFilters.has(s)).map(status => {
+    const d = DATA[dataKey][status];
+    const vals = Array.isArray(d) ? d.map(m => m[valueKey]) : d.by_month.map(m => m[valueKey]);
+    return {
+      label: status === 'Menos de 3 meses' ? 'Onboarding' : status,
+      data: vals.map(v => v === null ? null : v),
+      borderColor: COLORS[status],
+      backgroundColor: COLORS[status] + '22',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: COLORS[status],
+      tension: 0.35,
+      spanGaps: true,
+      fill: false
+    };
+  });
+}
+
+function buildScoreTrend() {
+  const ctx = document.getElementById('scoreTrendChart').getContext('2d');
+  if (charts.score) charts.score.destroy();
+  charts.score = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.month_labels,
+      datasets: getDatasets('score_by_status', 'avg')
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#7a7f94', font: { family: 'DM Sans', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1c1f28',
+          borderColor: '#252831',
+          borderWidth: 1,
+          titleColor: '#e8eaf0',
+          bodyColor: '#7a7f94',
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1) ?? '—'}` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7a7f94', font: { size: 11 } }, grid: { color: '#252831' } },
+        y: { 
+          min: 30, max: 105,
+          ticks: { color: '#7a7f94', font: { size: 11 } }, 
+          grid: { color: '#252831' },
+          title: { display: true, text: 'Score promedio', color: '#7a7f94', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function buildMejoraPct() {
+  const ctx = document.getElementById('mejoraPctChart').getContext('2d');
+  if (charts.mejPct) charts.mejPct.destroy();
+  charts.mejPct = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.mejora_labels,
+      datasets: DATA.statuses.filter(s => activeFilters.has(s)).map(status => ({
+        label: status === 'Menos de 3 meses' ? 'Onboarding' : status,
+        data: DATA.mejora_by_status[status].map(m => m.pct_improved),
+        backgroundColor: COLORS[status] + 'aa',
+        borderColor: COLORS[status],
+        borderWidth: 1,
+        borderRadius: 4
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#7a7f94', font: { family: 'DM Sans', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1c1f28', borderColor: '#252831', borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1) ?? '—'}%` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7a7f94', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#252831' } },
+        y: { 
+          min: 0, max: 100,
+          ticks: { color: '#7a7f94', font: { size: 11 }, callback: v => v + '%' }, 
+          grid: { color: '#252831' }
+        }
+      }
+    }
+  });
+}
+
+function buildMejoraAvg() {
+  const ctx = document.getElementById('mejoraAvgChart').getContext('2d');
+  if (charts.mejAvg) charts.mejAvg.destroy();
+  charts.mejAvg = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.mejora_labels,
+      datasets: DATA.statuses.filter(s => activeFilters.has(s)).map(status => ({
+        label: status === 'Menos de 3 meses' ? 'Onboarding' : status,
+        data: DATA.mejora_by_status[status].map(m => m.avg),
+        borderColor: COLORS[status],
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: COLORS[status],
+        tension: 0.3,
+        spanGaps: true
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#7a7f94', font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1c1f28', borderColor: '#252831', borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2) ?? '—'}%` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7a7f94', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#252831' } },
+        y: { 
+          ticks: { color: '#7a7f94', font: { size: 11 }, callback: v => v + '%' }, 
+          grid: { color: '#252831' },
+          title: { display: true, text: 'Cambio % prom.', color: '#7a7f94', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function buildRetention() {
+  const ctx = document.getElementById('retentionChart').getContext('2d');
+  if (charts.ret) charts.ret.destroy();
+  charts.ret = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.month_labels,
+      datasets: DATA.statuses.filter(s => activeFilters.has(s)).map(status => ({
+        label: status === 'Menos de 3 meses' ? 'Onboarding' : status,
+        data: DATA.retention_by_status[status].by_month.map(m => m.pct),
+        borderColor: COLORS[status],
+        backgroundColor: COLORS[status] + '18',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointBackgroundColor: COLORS[status],
+        tension: 0.35,
+        fill: true
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#7a7f94', font: { family: 'DM Sans', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#1c1f28', borderColor: '#252831', borderWidth: 1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1)}% activos` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7a7f94', font: { size: 11 } }, grid: { color: '#252831' } },
+        y: { 
+          min: 0, max: 100,
+          ticks: { color: '#7a7f94', font: { size: 11 }, callback: v => v + '%' }, 
+          grid: { color: '#252831' },
+          title: { display: true, text: '% con score activo', color: '#7a7f94', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function buildCohortTable() {
+  const table = document.getElementById('cohortTable');
+  const statuses = DATA.statuses.filter(s => activeFilters.has(s));
+  const months = DATA.month_labels;
+
+  let html = '<thead><tr><th>Estatus</th>';
+  months.forEach(m => html += `<th>${m}</th>`);
+  html += '</tr></thead><tbody>';
+
+  statuses.forEach(status => {
+    const byMonth = DATA.retention_by_status[status].by_month;
+    const color = COLORS[status];
+    const label = status === 'Menos de 3 meses' ? 'Onboarding' : status;
+    html += `<tr><td><span class="trend-dot" style="background:${color}"></span>${label}</td>`;
+    byMonth.forEach(m => {
+      const pct = m.pct;
+      const opacity = Math.max(0.08, pct / 100);
+      const textColor = pct > 50 ? color : '#7a7f94';
+      html += `<td><span class="cell-heat" style="background:${color}${Math.round(opacity*255).toString(16).padStart(2,'0')};color:${textColor}">${pct}%</span></td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function buildSparklines() {
+  const container = document.getElementById('sparklines');
+  const months = DATA.month_labels;
+
+  let html = '';
+  Object.entries(DATA.empresa_scores).forEach(([name, scores]) => {
+    const validScores = scores.filter(s => s !== null && s > 0);
+    if (validScores.length === 0) return;
+    const maxScore = Math.max(...validScores);
+    const lastValid = [...scores].reverse().find(s => s !== null && s > 0);
+    const color = '#4ecca3';
+
+    html += `<div class="sparkline-row">
+      <span class="sparkline-name" title="${name}">${name}</span>
+      <div class="sparkline-bars">`;
+
+    scores.forEach((s, i) => {
+      const h = s && s > 0 ? Math.round((s / 105) * 28) : 1;
+      const opacity = s && s > 0 ? 0.7 + (s / maxScore) * 0.3 : 0.1;
+      const bg = s && s > 0 ? color : '#252831';
+      html += `<div class="sparkline-bar" style="height:${h}px;background:${bg};opacity:${opacity}" title="${months[i]}: ${s?.toFixed(1) ?? '—'}"></div>`;
+    });
+
+    const scoreColor = lastValid >= 80 ? '#4ecca3' : lastValid >= 65 ? '#f5c842' : '#e85d75';
+    html += `</div><span class="sparkline-val" style="color:${scoreColor}">${lastValid?.toFixed(1)}</span></div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function buildCompanyLists() {
+  const container = document.getElementById('companyLists');
+  const config = [
+    { status: 'Activa', label: 'Empresas Activas', color: 'var(--activa)' },
+    { status: 'Churn', label: 'Empresas Churn', color: 'var(--churn)' },
+    { status: 'Menos de 3 meses', label: 'En Onboarding (<3 meses)', color: 'var(--menos3)' },
+    { status: 'Negociación', label: 'En Negociación', color: 'var(--negociacion)' }
+  ];
+
+  let html = '';
+  config.forEach(({ status, label, color }) => {
+    const companies = DATA.companies_by_status[status] || [];
+    html += `<div class="company-list-card">
+      <h3><span class="trend-dot" style="background:${color}"></span>${label} <span style="color:var(--muted);font-weight:400">(${companies.length})</span></h3>
+      <div class="company-chips">`;
+    companies.forEach(c => {
+      html += `<span class="chip">${c}</span>`;
+    });
+    html += '</div></div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function updateAllCharts() {
+  buildScoreTrend();
+  buildMejoraPct();
+  buildMejoraAvg();
+  buildRetention();
+  buildCohortTable();
+}
+
+// Init
+buildScoreTrend();
+buildMejoraPct();
+buildMejoraAvg();
+buildRetention();
+buildCohortTable();
+buildSparklines();
+buildCompanyLists();
+</script>
+</body>
+</html>
